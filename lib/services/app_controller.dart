@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
+import '../enums/ai_provider.dart';
 import '../enums/market_type.dart';
 import '../mock/mock_assets.dart';
 import '../models/analysis_result.dart';
@@ -257,6 +259,7 @@ class AppController extends ChangeNotifier {
 
     chatMessages = [...chatMessages, botMessage];
     isChatTyping = false;
+    await _syncAgentsDebateFromChat(botMessage, apiKey: settings.geminiApiKey);
     await storage.saveChat(chatMessages);
     notifyListeners();
   }
@@ -269,6 +272,8 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _isSpawningBackend = false;
+
   /// Check if the TradingAgents backend is reachable.
   Future<bool> checkBackendHealth() async {
     try {
@@ -276,8 +281,112 @@ class AppController extends ChangeNotifier {
     } catch (_) {
       isBackendOnline = false;
     }
+    if (!isBackendOnline &&
+        !_isSpawningBackend &&
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+      _spawnBackend();
+    }
+
     notifyListeners();
     return isBackendOnline;
+  }
+
+  Future<void> _spawnBackend() async {
+    _isSpawningBackend = true;
+    try {
+      debugPrint('[AppController] Attempting to auto-start backend...');
+      final projectRoot = _findProjectRoot();
+      if (Platform.isWindows) {
+        await Process.start(
+          'cmd',
+          ['/c', 'start', '/min', 'SETUP_BACKEND.bat'],
+          runInShell: true,
+          workingDirectory: projectRoot,
+        );
+      } else {
+        await Process.start(
+          'sh',
+          ['./SETUP_BACKEND.sh'],
+          runInShell: true,
+          workingDirectory: projectRoot,
+        );
+      }
+
+      // Try polling a few times to see if it comes online
+      for (int i = 0; i < 6; i++) {
+        await Future.delayed(const Duration(seconds: 5));
+        final isOnline = await tradingAgentsApi.isAvailable();
+        if (isOnline) {
+          isBackendOnline = true;
+          notifyListeners();
+          break;
+        }
+      }
+    } catch (e) {
+      debugPrint('[AppController] Auto-start backend failed: $e');
+    } finally {
+      _isSpawningBackend = false;
+    }
+  }
+
+  Future<void> _syncAgentsDebateFromChat(
+    ChatMessage botMessage, {
+    String? apiKey,
+  }) async {
+    final ticker = botMessage.relatedTicker;
+    if (botMessage.provider != AiProvider.tradingAgents ||
+        ticker == null ||
+        ticker.trim().isEmpty) {
+      return;
+    }
+
+    try {
+      final asset = await _assetWithLatestQuote(ticker);
+      final result = await analysisService.analyze(
+        asset.ticker,
+        asset: asset,
+        apiKey: apiKey,
+      );
+      selectedAnalysis = result;
+      analysisHistory = [
+        result,
+        ...analysisHistory.where(
+          (item) => item.asset.ticker != result.asset.ticker,
+        ),
+      ].take(30).toList();
+      await storage.saveAnalyses(analysisHistory);
+    } catch (e) {
+      debugPrint('[AppController] Failed to sync agents debate from chat: $e');
+    }
+  }
+
+  String _findProjectRoot() {
+    var dir = Directory.current;
+    for (var i = 0; i < 8; i++) {
+      if (File(
+        '${dir.path}${Platform.pathSeparator}SETUP_BACKEND.bat',
+      ).existsSync()) {
+        return dir.path;
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+
+    final executableDir = File(Platform.resolvedExecutable).parent;
+    dir = executableDir;
+    for (var i = 0; i < 8; i++) {
+      if (File(
+        '${dir.path}${Platform.pathSeparator}SETUP_BACKEND.bat',
+      ).existsSync()) {
+        return dir.path;
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+
+    return Directory.current.path;
   }
 
   Future<void> clearAnalysisHistory() async {
