@@ -33,6 +33,7 @@ class _ChatInputState extends State<ChatInput> {
   Widget build(BuildContext context) {
     return Shortcuts(
       shortcuts: const {
+        SingleActivator(LogicalKeyboardKey.enter): _SendChatIntent(),
         SingleActivator(LogicalKeyboardKey.enter, control: true):
             _SendChatIntent(),
       },
@@ -56,12 +57,11 @@ class _ChatInputState extends State<ChatInput> {
                 decoration: const InputDecoration(
                   hintText: 'Faça uma pergunta...',
                 ),
-                onSubmitted: (_) => _send(),
               ),
             ),
             const SizedBox(width: 10),
             Tooltip(
-              message: 'Enviar mensagem (Ctrl+Enter)',
+              message: 'Enviar mensagem (Enter)',
               child: FilledButton(
                 onPressed: widget.enabled ? _send : null,
                 style: FilledButton.styleFrom(
