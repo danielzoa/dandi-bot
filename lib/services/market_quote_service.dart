@@ -61,7 +61,7 @@ class MarketQuoteService {
   final String _investingProxyUrl;
   final String _tradingViewProxyUrl;
 
-  static const refreshInterval = Duration(seconds: 30);
+  static const refreshInterval = Duration(seconds: 1);
   static const _requestTimeout = Duration(seconds: 8);
 
   Future<Asset> enrichAsset(Asset asset) async {

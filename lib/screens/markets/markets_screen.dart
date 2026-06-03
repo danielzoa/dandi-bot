@@ -7,6 +7,7 @@ import '../../app.dart';
 import '../../enums/market_type.dart';
 import '../../mock/mock_assets.dart';
 import '../../services/app_controller.dart';
+import '../../services/market_quote_service.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/asset_card.dart';
 
@@ -26,7 +27,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshFamousAssets();
       _quoteTimer = Timer.periodic(
-        const Duration(seconds: 30),
+        MarketQuoteService.refreshInterval,
         (_) => _refreshFamousAssets(),
       );
     });
