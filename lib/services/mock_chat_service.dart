@@ -11,7 +11,7 @@ import 'trading_agents_api_service.dart';
 
 class MockChatService implements ChatService {
   MockChatService(this._gateway, {TradingAgentsApiService? backendApi})
-      : _backendApi = backendApi; // ignore: prefer_initializing_formals
+    : _backendApi = backendApi; // ignore: prefer_initializing_formals
 
   final AiGatewayService _gateway;
   TradingAgentsApiService? _backendApi;
@@ -34,8 +34,11 @@ class MockChatService implements ChatService {
     if (_backendApi != null) {
       try {
         final available = await _backendApi!.isAvailable();
-        if (available) {
-          return await _sendViaBackend(content, contextTicker);
+        final hasGeminiKey =
+            apiKey != null && apiKey.isNotEmpty ||
+            await _backendApi!.hasConfiguredProvider('google');
+        if (available && hasGeminiKey) {
+          return await _sendViaBackend(content, contextTicker, apiKey: apiKey);
         }
       } catch (e) {
         debugPrint('[ChatService] Backend unavailable: $e');
@@ -87,9 +90,13 @@ class MockChatService implements ChatService {
   /// Sends message via TradingAgents backend, polls for result if job is started.
   Future<ChatMessage> _sendViaBackend(
     String content,
-    String? contextTicker,
-  ) async {
-    final response = await _backendApi!.sendChatMessage(message: content);
+    String? contextTicker, {
+    String? apiKey,
+  }) async {
+    final response = await _backendApi!.sendChatMessage(
+      message: content,
+      apiKey: apiKey,
+    );
     final type = response['type'] as String?;
     final botMsg = response['message'] as String? ?? '';
     final jobId = response['job_id'] as String?;
@@ -107,7 +114,8 @@ class MockChatService implements ChatService {
         final status = jobResult['status'] as String?;
         if (status == 'done') {
           final result = jobResult['result'] as Map<String, dynamic>?;
-          final resultText = result?['raw'] as String? ??
+          final resultText =
+              result?['raw'] as String? ??
               _formatAnalysisResult(result) ??
               'Análise concluída.';
 
@@ -135,7 +143,8 @@ class MockChatService implements ChatService {
       } catch (e) {
         return ChatMessage(
           id: _uuid.v4(),
-          content: '$botMsg\n\n⏳ A análise está demorando. '
+          content:
+              '$botMsg\n\n⏳ A análise está demorando. '
               'Você pode verificar o status em: /api/status/$jobId',
           sender: MessageSender.bot,
           createdAt: DateTime.now(),
@@ -174,7 +183,9 @@ class MockChatService implements ChatService {
 
     if (result.containsKey('confidence')) {
       final confidence = (result['confidence'] as num?)?.toDouble() ?? 0;
-      buffer.writeln('**Confiança:** ${(confidence * 100).toStringAsFixed(0)}%');
+      buffer.writeln(
+        '**Confiança:** ${(confidence * 100).toStringAsFixed(0)}%',
+      );
     }
 
     if (result.containsKey('risk_level')) {

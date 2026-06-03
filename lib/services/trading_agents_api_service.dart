@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 /// Provides: health check, chat, analysis, job polling, diagnostics.
 class TradingAgentsApiService {
   TradingAgentsApiService({String? baseUrl})
-      : _baseUrl = baseUrl ?? 'http://127.0.0.1:8000';
+    : _baseUrl = baseUrl ?? 'http://127.0.0.1:8000';
 
   String _baseUrl;
 
@@ -51,6 +51,7 @@ class TradingAgentsApiService {
   /// Returns the initial response with possible job_id for tracking.
   Future<Map<String, dynamic>> sendChatMessage({
     required String message,
+    String? apiKey,
     String llmProvider = 'google',
     String deepThinkLlm = 'gemini-2.5-pro',
     String quickThinkLlm = 'gemini-2.0-flash',
@@ -66,6 +67,7 @@ class TradingAgentsApiService {
             'deep_think_llm': deepThinkLlm,
             'quick_think_llm': quickThinkLlm,
             'max_debate_rounds': maxDebateRounds,
+            if (apiKey != null && apiKey.isNotEmpty) 'api_key': apiKey,
           }),
         )
         .timeout(const Duration(seconds: 15));
@@ -84,6 +86,7 @@ class TradingAgentsApiService {
   Future<Map<String, dynamic>> startAnalysis({
     required String ticker,
     required String date,
+    String? apiKey,
     String llmProvider = 'google',
     String deepThinkLlm = 'gemini-2.5-pro',
     String quickThinkLlm = 'gemini-2.0-flash',
@@ -100,13 +103,15 @@ class TradingAgentsApiService {
             'deep_think_llm': deepThinkLlm,
             'quick_think_llm': quickThinkLlm,
             'max_debate_rounds': maxDebateRounds,
+            if (apiKey != null && apiKey.isNotEmpty) 'api_key': apiKey,
           }),
         )
         .timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
       throw Exception(
-          'Analysis start failed: ${response.statusCode} ${response.body}');
+        'Analysis start failed: ${response.statusCode} ${response.body}',
+      );
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
@@ -182,6 +187,17 @@ class TradingAgentsApiService {
       throw Exception('Diagnostics failed: ${response.statusCode}');
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// Returns whether the backend has an API key configured for [provider].
+  Future<bool> hasConfiguredProvider(String provider) async {
+    try {
+      final diagnostics = await getDiagnostics();
+      final configured = diagnostics['providers_configured'] as List<dynamic>?;
+      return configured?.contains(provider) ?? false;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// GET /api/jobs

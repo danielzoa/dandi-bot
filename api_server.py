@@ -7,6 +7,7 @@ import asyncio
 import json
 import uuid
 import os
+import threading
 from datetime import datetime
 from typing import Optional, AsyncGenerator
 
@@ -14,6 +15,20 @@ from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+
+# Load API keys before importing TradingAgents. This works whether api_server.py
+# runs from the project root or from the copied TradingAgents directory.
+try:
+    from dotenv import load_dotenv
+
+    _server_dir = os.path.dirname(os.path.abspath(__file__))
+    load_dotenv(os.path.join(_server_dir, ".env"), override=False)
+    load_dotenv(
+        os.path.join(_server_dir, "TradingAgents", ".env"),
+        override=False,
+    )
+except ImportError:
+    pass
 
 # ---------------------------------------------------------------------------
 # Importação do TradingAgents (deve estar instalado no mesmo venv)
@@ -72,6 +87,7 @@ sse_queues: dict[str, list[asyncio.Queue]] = {}
 # session_id -> LangChain messages (in-memory; replace with Redis in production)
 conversation_histories: dict[str, list] = {}
 financial_chat_graph: Optional["FinancialChatGraph"] = None
+llm_client_init_lock = threading.Lock()
 
 
 def _push_event(job_id: str, event: dict):
@@ -94,6 +110,7 @@ class AnalyzeRequest(BaseModel):
     quick_think_llm: str = "gpt-4o-mini"
     max_debate_rounds: int = 1
     checkpoint_enabled: bool = False
+    api_key: Optional[str] = Field(default=None, exclude=True)
 
 
 class ChatRequest(BaseModel):
@@ -102,6 +119,7 @@ class ChatRequest(BaseModel):
     deep_think_llm: str = "gpt-4o"
     quick_think_llm: str = "gpt-4o-mini"
     max_debate_rounds: int = 1
+    api_key: Optional[str] = Field(default=None, exclude=True)
 
 
 class ChatHistoryMessage(BaseModel):
@@ -154,7 +172,18 @@ def _sync_run_analysis(job_id: str, req: AnalyzeRequest):
     config["max_debate_rounds"] = req.max_debate_rounds
     config["checkpoint_enabled"] = req.checkpoint_enabled
 
-    ta = TradingAgentsGraph(debug=True, config=config)
+    with llm_client_init_lock:
+        previous_google_key = os.environ.get("GOOGLE_API_KEY")
+        if req.llm_provider.lower() == "google" and req.api_key:
+            os.environ["GOOGLE_API_KEY"] = req.api_key
+        try:
+            ta = TradingAgentsGraph(debug=True, config=config)
+        finally:
+            if req.llm_provider.lower() == "google" and req.api_key:
+                if previous_google_key is None:
+                    os.environ.pop("GOOGLE_API_KEY", None)
+                else:
+                    os.environ["GOOGLE_API_KEY"] = previous_google_key
     state, decision = ta.propagate(req.ticker, req.date)
     return state, decision
 
@@ -444,6 +473,7 @@ async def chat(req: ChatRequest, background_tasks: BackgroundTasks):
         deep_think_llm=req.deep_think_llm,
         quick_think_llm=req.quick_think_llm,
         max_debate_rounds=req.max_debate_rounds,
+        api_key=req.api_key,
     )
 
     job_id = str(uuid.uuid4())
