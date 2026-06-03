@@ -1,0 +1,22 @@
+Dandi Bot - PC e Web
+
+Executavel de PC ja gerado:
+C:\Users\DANIEL\Documents\DanDi Bot\build\windows\x64\runner\Release\dandi_bot.exe
+
+Abra com:
+C:\Users\DANIEL\Documents\DanDi Bot\build\windows\x64\runner\Release\INICIAR_DANDI_BOT_PC.bat
+
+Para gerar novamente a versao PC:
+C:\Users\DANIEL\Documents\DanDi Bot\GERAR_PC.bat
+
+Build Web ja validado:
+C:\Users\DANIEL\Documents\DanDi Bot\build\web
+
+Para gerar novamente a versao Web:
+C:\Users\DANIEL\Documents\DanDi Bot\GERAR_WEB.bat
+
+Atalhos principais:
+Ctrl+1 Home, Ctrl+2 Mercados, Ctrl+3 Carteira, Ctrl+4 Historico, Ctrl+5 Chat, Ctrl+6 Configuracoes.
+Ctrl+K foca a busca da Home.
+Ctrl+Enter envia mensagem no chat.
+F1 abre a ajuda de atalhos.
