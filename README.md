@@ -161,12 +161,30 @@ O DanDi Bot usa o framework **TradingAgents** com os seguintes agentes:
 |--------|----------|-----------|
 | GET | `/api/health` | Health check do servidor |
 | POST | `/api/chat` | Chat com parsing de ticker |
+| POST | `/api/v1/chat` | Chat LangGraph com porteiro, analistas, relator e historico |
 | POST | `/api/analyze` | Análise direta por ticker |
 | GET | `/api/status/{job_id}` | Status de um job |
 | GET | `/api/stream/{job_id}` | Stream SSE de um job |
 | GET | `/api/providers` | LLMs disponíveis |
 | GET | `/api/diagnostics` | Diagnóstico do ambiente |
 | GET | `/api/jobs` | Lista de jobs recentes |
+
+### Chat financeiro LangGraph
+
+Configure `GOOGLE_API_KEY` ou `GEMINI_API_KEY` antes de iniciar o backend.
+O endpoint mantem as ultimas mensagens por `session_id` e tambem aceita um
+historico explicito:
+
+```json
+{
+  "message": "Analise os riscos de PETR4.",
+  "session_id": "usuario-123",
+  "history": [
+    {"role": "user", "content": "Quero analisar empresas brasileiras."},
+    {"role": "assistant", "content": "Vamos comparar fundamentos e riscos."}
+  ]
+}
+```
 
 ## 🛠️ Estrutura do Projeto
 

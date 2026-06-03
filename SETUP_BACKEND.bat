@@ -50,6 +50,12 @@ if exist "..\api_server.py" (
     echo AVISO: api_server.py nao encontrado na raiz do Dandi Bot.
     echo Copie manualmente de: Desktop\Dandi Bot\bugs\files\api_server.py
 )
+if exist "..\financial_chat_graph.py" (
+    copy /Y "..\financial_chat_graph.py" "financial_chat_graph.py"
+    echo financial_chat_graph.py copiado com sucesso.
+) else (
+    echo AVISO: financial_chat_graph.py nao encontrado na raiz do Dandi Bot.
+)
 echo.
 
 :: 5. Iniciar servidor

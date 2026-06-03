@@ -13,7 +13,7 @@ from typing import Optional, AsyncGenerator
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
 # Importação do TradingAgents (deve estar instalado no mesmo venv)
@@ -25,6 +25,14 @@ try:
 except ImportError:
     TRADINGAGENTS_AVAILABLE = False
     print("[WARN] tradingagents não encontrado — rode: pip install .")
+
+try:
+    from langchain_core.messages import AIMessage, HumanMessage
+    from financial_chat_graph import FinancialChatGraph
+    FINANCIAL_CHAT_AVAILABLE = True
+except ImportError:
+    FINANCIAL_CHAT_AVAILABLE = False
+    print("[WARN] financial_chat_graph nao esta disponivel.")
 
 # ---------------------------------------------------------------------------
 # App
@@ -45,6 +53,7 @@ app.add_middleware(
         "http://127.0.0.1:4173",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "https://dandibot.netlify.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -59,6 +68,10 @@ jobs: dict[str, dict] = {}
 
 # SSE subscribers: job_id → lista de filas
 sse_queues: dict[str, list[asyncio.Queue]] = {}
+
+# session_id -> LangChain messages (in-memory; replace with Redis in production)
+conversation_histories: dict[str, list] = {}
+financial_chat_graph: Optional["FinancialChatGraph"] = None
 
 
 def _push_event(job_id: str, event: dict):
@@ -91,6 +104,17 @@ class ChatRequest(BaseModel):
     max_debate_rounds: int = 1
 
 
+class ChatHistoryMessage(BaseModel):
+    role: str
+    content: str
+
+
+class FinancialChatRequest(BaseModel):
+    message: str
+    session_id: str = "default"
+    history: list[ChatHistoryMessage] = Field(default_factory=list)
+
+
 class JobResponse(BaseModel):
     job_id: str
     status: str
@@ -98,6 +122,18 @@ class JobResponse(BaseModel):
     error: Optional[str] = None
     logs: list[str] = []
     created_at: str
+
+
+def _get_financial_chat_graph() -> "FinancialChatGraph":
+    global financial_chat_graph
+    if not FINANCIAL_CHAT_AVAILABLE:
+        raise RuntimeError(
+            "O grafo financeiro nao esta disponivel. "
+            "Instale langgraph e langchain-google-genai."
+        )
+    if financial_chat_graph is None:
+        financial_chat_graph = FinancialChatGraph()
+    return financial_chat_graph
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +351,57 @@ async def list_jobs(limit: int = 20):
     ]
 
 
+@app.post("/api/v1/chat")
+async def financial_chat(req: FinancialChatRequest):
+    """
+    LangGraph financial chat with gatekeeper, TradingAgents-inspired analysts,
+    synthesis, and per-session message history.
+    """
+    message = req.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="A mensagem nao pode ser vazia.")
+
+    try:
+        graph = _get_financial_chat_graph()
+        if req.history:
+            history = [
+                HumanMessage(content=item.content)
+                if item.role.lower() in {"user", "human"}
+                else AIMessage(content=item.content)
+                for item in req.history
+                if item.content.strip()
+            ]
+        else:
+            history = conversation_histories.get(req.session_id, [])
+
+        result = await graph.ainvoke(message, history=history)
+        response = result.get("final_response", "")
+        conversation_histories[req.session_id] = result.get("messages", [])[-20:]
+
+        return {
+            "type": (
+                "financial_analysis"
+                if result.get("gatekeeper_passed")
+                else "out_of_scope"
+            ),
+            "message": response,
+            "session_id": req.session_id,
+            "provider": "google_gemini",
+            "analyses": {
+                "fundamental": result.get("fundamental_analysis"),
+                "technical": result.get("technical_analysis"),
+                "sentiment": result.get("sentiment_analysis"),
+            },
+        }
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Falha ao executar o grafo financeiro: {exc}",
+        ) from exc
+
+
 @app.post("/api/chat")
 async def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     """
@@ -412,6 +499,8 @@ async def diagnostics():
 
     return {
         "tradingagents_installed": TRADINGAGENTS_AVAILABLE,
+        "financial_chat_available": FINANCIAL_CHAT_AVAILABLE,
+        "financial_chat_sessions": len(conversation_histories),
         "providers_configured": providers_with_keys,
         "providers_missing_keys": providers_missing_keys,
         "python_path": os.sys.executable,
