@@ -5,6 +5,7 @@ class NewsArticle {
     required this.source,
     required this.url,
     required this.category,
+    required this.agentName,
     this.publishedAt,
   });
 
@@ -15,6 +16,7 @@ class NewsArticle {
       source: json['source'] as String? ?? 'Yahoo Finance',
       url: json['url'] as String? ?? '',
       category: json['category'] as String? ?? 'mercados',
+      agentName: json['agent_name'] as String? ?? 'Analista de Noticias',
       publishedAt: DateTime.tryParse(json['published_at'] as String? ?? ''),
     );
   }
@@ -24,5 +26,6 @@ class NewsArticle {
   final String source;
   final String url;
   final String category;
+  final String agentName;
   final DateTime? publishedAt;
 }

@@ -226,7 +226,7 @@ class _NewsCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  '${article.source}  |  $_publishedLabel',
+                  '${article.agentName}  |  ${article.source}  |  $_publishedLabel',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.muted.copyWith(fontSize: 11),

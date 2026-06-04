@@ -83,6 +83,9 @@ async def _fetch_feed(
                 "source": feed["source"],
                 "published_at": published.isoformat(),
                 "category": feed["category"],
+                "agent_name": "Analista Macroeconomico"
+                if feed["category"] == "economia"
+                else "Analista de Noticias",
                 "brazil": True,
             }
         )

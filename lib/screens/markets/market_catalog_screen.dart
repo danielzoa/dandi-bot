@@ -30,6 +30,7 @@ class _MarketCatalogScreenState extends State<MarketCatalogScreen> {
   String _query = '';
   int _loadGeneration = 0;
   bool _usingFallback = false;
+  bool _fullCatalogLoaded = false;
 
   @override
   void initState() {
@@ -63,6 +64,7 @@ class _MarketCatalogScreenState extends State<MarketCatalogScreen> {
         _totalCount = 0;
         _hasMore = true;
         _usingFallback = false;
+        _fullCatalogLoaded = false;
         _loading = true;
       });
     } else {
@@ -76,11 +78,15 @@ class _MarketCatalogScreenState extends State<MarketCatalogScreen> {
     late MarketCatalogPage page;
     var usingFallback = false;
     try {
-      page = await controller.catalogService.fetchAssets(
-        marketType,
-        start: start,
-        query: query,
-      );
+      if (reset && query.isEmpty) {
+        page = await controller.catalogService.fetchAllAssets(marketType);
+      } else {
+        page = await controller.catalogService.fetchAssets(
+          marketType,
+          start: start,
+          query: query,
+        );
+      }
       if (reset && page.assets.isEmpty && query.isEmpty) {
         page = _fallbackPage(marketType);
         usingFallback = true;
@@ -102,6 +108,7 @@ class _MarketCatalogScreenState extends State<MarketCatalogScreen> {
       _totalCount = page.totalCount;
       _hasMore = page.hasMore;
       _usingFallback = usingFallback;
+      _fullCatalogLoaded = reset && query.isEmpty && !page.hasMore;
       _loading = false;
     });
   }
@@ -173,6 +180,7 @@ class _MarketCatalogScreenState extends State<MarketCatalogScreen> {
           source: source,
           loading: _loading,
           usingFallback: _usingFallback,
+          fullCatalogLoaded: _fullCatalogLoaded,
           onRetry: _loading ? null : () => _load(reset: true),
         ),
         const SizedBox(height: 14),
@@ -253,6 +261,7 @@ class _CatalogStatus extends StatelessWidget {
     required this.source,
     required this.loading,
     required this.usingFallback,
+    required this.fullCatalogLoaded,
     required this.onRetry,
   });
 
@@ -261,6 +270,7 @@ class _CatalogStatus extends StatelessWidget {
   final String source;
   final bool loading;
   final bool usingFallback;
+  final bool fullCatalogLoaded;
   final VoidCallback? onRetry;
 
   @override
@@ -273,6 +283,8 @@ class _CatalogStatus extends StatelessWidget {
       children: [
         Text(label, style: AppTextStyles.muted),
         Text('Fonte $source', style: AppTextStyles.muted),
+        if (fullCatalogLoaded)
+          Text('Acervo completo carregado', style: AppTextStyles.muted),
         if (usingFallback)
           TextButton.icon(
             onPressed: onRetry,

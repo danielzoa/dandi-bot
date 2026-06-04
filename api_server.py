@@ -122,6 +122,92 @@ news_cache_lock = threading.Lock()
 logger = logging.getLogger(__name__)
 
 
+def _agent_for_news_category(category: str) -> str:
+    return {
+        "macro": "Analista Macroeconomico",
+        "mercados": "Analista de Noticias",
+        "geopolitica": "Analista de Risco Regulatorio",
+        "commodities": "Analista de Sentimento",
+        "economia": "Analista Macroeconomico",
+    }.get(category.lower(), "Analista de Noticias")
+
+
+def _analysis_agent_references() -> list[dict[str, str]]:
+    return [
+        {
+            "key": "market_analyst",
+            "name": "Analista Tecnico",
+            "scope": "Preco, tendencia, volume e indicadores.",
+        },
+        {
+            "key": "fundamentals_analyst",
+            "name": "Analista Fundamentalista",
+            "scope": "Balanco, fundamentos, valuation e contexto macro.",
+        },
+        {
+            "key": "news_analyst",
+            "name": "Analista de Noticias",
+            "scope": "Noticias recentes e catalisadores.",
+        },
+        {
+            "key": "sentiment_analyst",
+            "name": "Analista de Sentimento",
+            "scope": "Narrativa, percepcao de mercado e mudancas de humor.",
+        },
+        {
+            "key": "risk_manager",
+            "name": "Gestor de Risco",
+            "scope": "Riscos, exposicao e coerencia da decisao.",
+        },
+        {
+            "key": "trader",
+            "name": "Dandi Bot",
+            "scope": "Sintese final e decisao operacional.",
+        },
+    ]
+
+
+def _fallback_news_payload(
+    ticker: Optional[str],
+    limit: int,
+    reason: str = "Fontes temporariamente indisponiveis.",
+) -> dict:
+    now = datetime.now(timezone.utc)
+    with news_cache_lock:
+        cached = news_cache.get("__last_good__")
+        if cached and cached.get("payload", {}).get("articles"):
+            payload = dict(cached["payload"])
+            payload["stale"] = True
+            payload["fallback_reason"] = reason
+            payload["updated_at"] = now.isoformat()
+            payload["articles"] = payload["articles"][:limit]
+            return payload
+
+    return {
+        "articles": [
+            {
+                "title": "Radar de noticias aguardando fontes verificaveis",
+                "summary": reason,
+                "source": "Dandi Bot",
+                "url": "",
+                "published_at": now.isoformat(),
+                "category": "mercados",
+                "agent_name": "Analista de Noticias",
+                "fallback": True,
+            }
+        ],
+        "ticker": (ticker or "").strip().upper() or None,
+        "updated_at": now.isoformat(),
+        "refresh_seconds": 30,
+        "lookback_hours": 72,
+        "today_count": 0,
+        "source": "Cache local do Dandi Bot",
+        "brazil_count": 0,
+        "stale": False,
+        "fallback_reason": reason,
+    }
+
+
 def _push_event(job_id: str, event: dict):
     """Empurra evento para todos os subscribers SSE daquele job."""
     for q in sse_queues.get(job_id, []):
@@ -201,6 +287,7 @@ def _news_article_data(article: dict, category: str) -> dict:
         "url": link,
         "published_at": published_at,
         "category": category,
+        "agent_name": _agent_for_news_category(category),
     }
 
 
@@ -376,6 +463,7 @@ async def _run_analysis_job(job_id: str, req: AnalyzeRequest):
             result = {"raw": str(decision)}
         if jobs[job_id].get("brazil_context"):
             result["brazil_context"] = jobs[job_id]["brazil_context"]
+        result["agent_references"] = _analysis_agent_references()
 
         jobs[job_id].update({
             "status": "done",
@@ -471,6 +559,10 @@ async def get_news(ticker: Optional[str] = None, limit: int = 16):
             published = _article_published_at(article)
             if published is None:
                 continue
+            article.setdefault(
+                "agent_name",
+                _agent_for_news_category(article.get("category", "mercados")),
+            )
             key = article.get("url") or article.get("title")
             if key:
                 merged.setdefault(key, article)
@@ -480,7 +572,13 @@ async def get_news(ticker: Optional[str] = None, limit: int = 16):
             or datetime.min.replace(tzinfo=timezone.utc),
             reverse=True,
         )[:safe_limit]
-        return {
+        if not articles:
+            return _fallback_news_payload(
+                ticker,
+                safe_limit,
+                "Nenhuma fonte retornou noticias recentes verificaveis.",
+            )
+        payload = {
             **yahoo_payload,
             "articles": articles,
             "today_count": sum(
@@ -492,8 +590,15 @@ async def get_news(ticker: Optional[str] = None, limit: int = 16):
             ),
             "brazil_count": sum(1 for article in articles if article.get("brazil")),
         }
+        with news_cache_lock:
+            news_cache["__last_good__"] = {
+                "cached_at": datetime.now(timezone.utc),
+                "payload": payload,
+            }
+        return payload
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        logger.warning("Falha ao buscar noticias; usando fallback: %s", exc)
+        return _fallback_news_payload(ticker, safe_limit, str(exc))
 
 
 @app.get("/api/macro")

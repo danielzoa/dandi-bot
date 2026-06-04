@@ -29,7 +29,9 @@ class MarketCatalogService {
   final http.Client _client;
   final String _tradingViewProxyUrl;
 
-  static const pageSize = 30;
+  static const pageSize = 100;
+  static const fullCatalogPageSize = 150;
+  static const fullCatalogMaxPages = 40;
   static const _requestTimeout = Duration(seconds: 8);
 
   Future<MarketCatalogPage> fetchAssets(
@@ -43,6 +45,41 @@ class MarketCatalogService {
       start: start,
       size: size,
       query: query,
+    );
+  }
+
+  Future<MarketCatalogPage> fetchAllAssets(
+    MarketType marketType, {
+    String query = '',
+    int pageSize = fullCatalogPageSize,
+    int maxPages = fullCatalogMaxPages,
+  }) async {
+    final assets = <Asset>[];
+    var totalCount = 0;
+    var hasMore = true;
+
+    for (var page = 0; page < maxPages && hasMore; page++) {
+      final next = await fetchAssets(
+        marketType,
+        start: assets.length,
+        size: pageSize,
+        query: query,
+      );
+      totalCount = next.totalCount;
+      assets.addAll(next.assets);
+      hasMore = next.hasMore && next.assets.isNotEmpty;
+    }
+
+    final deduped = <String, Asset>{};
+    for (final asset in assets) {
+      final key = asset.tradingViewSymbol ?? asset.ticker;
+      deduped[key] = asset;
+    }
+
+    return MarketCatalogPage(
+      assets: deduped.values.toList(),
+      totalCount: totalCount,
+      hasMore: hasMore,
     );
   }
 
