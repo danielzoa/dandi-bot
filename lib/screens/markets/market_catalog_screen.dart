@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app.dart';
 import '../../enums/market_type.dart';
+import '../../mock/mock_assets.dart';
 import '../../models/asset.dart';
 import '../../services/app_controller.dart';
 import '../../services/market_catalog_service.dart';
@@ -27,6 +28,8 @@ class _MarketCatalogScreenState extends State<MarketCatalogScreen> {
   bool _hasMore = true;
   int _totalCount = 0;
   String _query = '';
+  int _loadGeneration = 0;
+  bool _usingFallback = false;
 
   @override
   void initState() {
@@ -52,23 +55,45 @@ class _MarketCatalogScreenState extends State<MarketCatalogScreen> {
   }
 
   Future<void> _load({bool reset = false}) async {
-    if (_loading) return;
-    setState(() => _loading = true);
-
-    final controller = DandiScope.of(context);
-    late final MarketCatalogPage page;
-    try {
-      page = await controller.catalogService.fetchAssets(
-        widget.marketType,
-        start: reset ? 0 : _assets.length,
-        query: _query,
-      );
-      controller.rememberCatalogAssets(page.assets);
-    } catch (_) {
-      page = const MarketCatalogPage(assets: [], totalCount: 0, hasMore: false);
+    if (_loading && !reset) return;
+    final generation = reset ? ++_loadGeneration : _loadGeneration;
+    if (reset) {
+      setState(() {
+        _assets.clear();
+        _totalCount = 0;
+        _hasMore = true;
+        _usingFallback = false;
+        _loading = true;
+      });
+    } else {
+      setState(() => _loading = true);
     }
 
-    if (!mounted) return;
+    final controller = DandiScope.of(context);
+    final marketType = widget.marketType;
+    final query = _query;
+    final start = reset ? 0 : _assets.length;
+    late MarketCatalogPage page;
+    var usingFallback = false;
+    try {
+      page = await controller.catalogService.fetchAssets(
+        marketType,
+        start: start,
+        query: query,
+      );
+      if (reset && page.assets.isEmpty && query.isEmpty) {
+        page = _fallbackPage(marketType);
+        usingFallback = true;
+      }
+      controller.rememberCatalogAssets(page.assets);
+    } catch (_) {
+      page = reset
+          ? _fallbackPage(marketType)
+          : const MarketCatalogPage(assets: [], totalCount: 0, hasMore: false);
+      usingFallback = reset;
+    }
+
+    if (!mounted || generation != _loadGeneration) return;
     setState(() {
       final nextAssets = reset ? page.assets : [..._assets, ...page.assets];
       _assets
@@ -76,8 +101,18 @@ class _MarketCatalogScreenState extends State<MarketCatalogScreen> {
         ..addAll(_dedupeAssets(nextAssets));
       _totalCount = page.totalCount;
       _hasMore = page.hasMore;
+      _usingFallback = usingFallback;
       _loading = false;
     });
+  }
+
+  MarketCatalogPage _fallbackPage(MarketType marketType) {
+    final assets = MockAssets.byMarket(marketType);
+    return MarketCatalogPage(
+      assets: assets,
+      totalCount: assets.length,
+      hasMore: false,
+    );
   }
 
   void _applySearch(String value) {
@@ -137,6 +172,8 @@ class _MarketCatalogScreenState extends State<MarketCatalogScreen> {
           total: _totalCount,
           source: source,
           loading: _loading,
+          usingFallback: _usingFallback,
+          onRetry: _loading ? null : () => _load(reset: true),
         ),
         const SizedBox(height: 14),
         if (_assets.isEmpty && _loading)
@@ -215,12 +252,16 @@ class _CatalogStatus extends StatelessWidget {
     required this.total,
     required this.source,
     required this.loading,
+    required this.usingFallback,
+    required this.onRetry,
   });
 
   final int loaded;
   final int total;
   final String source;
   final bool loading;
+  final bool usingFallback;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -232,6 +273,12 @@ class _CatalogStatus extends StatelessWidget {
       children: [
         Text(label, style: AppTextStyles.muted),
         Text('Fonte $source', style: AppTextStyles.muted),
+        if (usingFallback)
+          TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded, size: 16),
+            label: const Text('Exibindo ativos conhecidos. Tentar atualizar'),
+          ),
         if (loading)
           const SizedBox(
             width: 14,

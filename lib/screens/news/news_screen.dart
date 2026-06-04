@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/news_article.dart';
 import '../../services/app_controller.dart';
@@ -94,9 +95,42 @@ class _NewsCard extends StatelessWidget {
 
   final NewsArticle article;
 
+  String get _publishedLabel {
+    final publishedAt = article.publishedAt;
+    if (publishedAt == null) return 'Horário não informado';
+    return DateFormat(
+      "dd/MM/yyyy 'às' HH:mm",
+      'pt_BR',
+    ).format(publishedAt.toLocal());
+  }
+
+  Future<void> _openArticle(BuildContext context) async {
+    final uri = Uri.tryParse(article.url);
+    if (uri == null ||
+        !uri.hasScheme ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'A fonte não disponibilizou um link para esta notícia.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível abrir a notícia.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return DandiCard(
+      onTap: () => _openArticle(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -123,10 +157,21 @@ class _NewsCard extends StatelessWidget {
               ),
               const Spacer(),
               Flexible(
-                child: Text(
-                  article.source,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.muted,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      article.source,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.muted,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _publishedLabel,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.muted.copyWith(fontSize: 11),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -149,6 +194,25 @@ class _NewsCard extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(
+                'Abrir notícia',
+                style: AppTextStyles.muted.copyWith(
+                  color: AppColors.blueBright,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 5),
+              const Icon(
+                Icons.open_in_new_rounded,
+                size: 16,
+                color: AppColors.blueBright,
+              ),
+            ],
+          ),
         ],
       ),
     );

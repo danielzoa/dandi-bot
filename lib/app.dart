@@ -42,7 +42,10 @@ class DandiApp extends StatelessWidget {
           (market) => market.name == marketName,
           orElse: () => MarketType.brazil,
         );
-        return MarketCatalogScreen(marketType: marketType);
+        return MarketCatalogScreen(
+          key: ValueKey(marketType),
+          marketType: marketType,
+        );
       }),
       _route(
         routeAnalysis,
