@@ -15,48 +15,47 @@ class NewsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = DandiScope.of(context);
     final updatedAt = controller.newsUpdatedAt;
+    final groupedArticles = <String, List<NewsArticle>>{};
+    for (final article in controller.newsArticles) {
+      groupedArticles.putIfAbsent(article.category, () => []).add(article);
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Icon(
-              Icons.newspaper_rounded,
-              size: 34,
-              color: AppColors.blueBright,
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Guia de Noticias', style: AppTextStyles.display),
+                  Text('Noticias', style: AppTextStyles.display),
+                  const SizedBox(height: 6),
                   Text(
                     updatedAt == null
-                        ? 'Radar macroeconomico usado pelos agentes'
-                        : 'Atualizado as ${DateFormat.Hms('pt_BR').format(updatedAt)} | atualizacao automatica a cada 30s',
+                        ? 'Radar macroeconomico usado pelos agentes.'
+                        : 'Atualizado as ${DateFormat.Hm('pt_BR').format(updatedAt)}. Atualizacao automatica a cada 30s.',
                     style: AppTextStyles.muted,
                   ),
                 ],
               ),
             ),
-            IconButton(
-              tooltip: 'Atualizar agora',
+            OutlinedButton.icon(
               onPressed: controller.isRefreshingNews
                   ? null
                   : controller.refreshNews,
               icon: controller.isRefreshingNews
                   ? const SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.refresh_rounded),
+              label: const Text('Atualizar'),
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 22),
         if (controller.newsArticles.isEmpty)
           DandiCard(
             child: Text(
@@ -67,27 +66,79 @@ class NewsScreen extends StatelessWidget {
             ),
           )
         else
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth > 900 ? 2 : 1;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: controller.newsArticles.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: columns == 1 ? 2.6 : 1.7,
+          for (final entry in groupedArticles.entries) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(
+                        _categoryIcon(entry.key),
+                        color: AppColors.blueBright,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _categoryLabel(entry.key),
+                        style: AppTextStyles.title,
+                      ),
+                    ],
+                  ),
                 ),
-                itemBuilder: (context, index) =>
-                    _NewsCard(article: controller.newsArticles[index]),
-              );
-            },
-          ),
+                Text(
+                  '${entry.value.length} noticias',
+                  style: AppTextStyles.muted,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth > 980
+                    ? 3
+                    : constraints.maxWidth > 620
+                    ? 2
+                    : 1;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: entry.value.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: columns == 1 ? 4.2 : 3.2,
+                  ),
+                  itemBuilder: (context, index) =>
+                      _NewsCard(article: entry.value[index]),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+          ],
       ],
     );
   }
+}
+
+String _categoryLabel(String category) {
+  return switch (category.toLowerCase()) {
+    'macro' => 'Macroeconomia',
+    'mercados' => 'Mercados',
+    'geopolitica' => 'Geopolitica',
+    'commodities' => 'Commodities',
+    final value => value.toUpperCase(),
+  };
+}
+
+IconData _categoryIcon(String category) {
+  return switch (category.toLowerCase()) {
+    'macro' => Icons.account_balance_outlined,
+    'mercados' => Icons.query_stats_rounded,
+    'geopolitica' => Icons.public_rounded,
+    'commodities' => Icons.oil_barrel_outlined,
+    _ => Icons.newspaper_rounded,
+  };
 }
 
 class _NewsCard extends StatelessWidget {
@@ -97,9 +148,9 @@ class _NewsCard extends StatelessWidget {
 
   String get _publishedLabel {
     final publishedAt = article.publishedAt;
-    if (publishedAt == null) return 'Horário não informado';
+    if (publishedAt == null) return 'Horario nao informado';
     return DateFormat(
-      "dd/MM/yyyy 'às' HH:mm",
+      'dd/MM/yyyy - HH:mm',
       'pt_BR',
     ).format(publishedAt.toLocal());
   }
@@ -112,7 +163,7 @@ class _NewsCard extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'A fonte não disponibilizou um link para esta notícia.',
+            'A fonte nao disponibilizou um link para esta noticia.',
           ),
         ),
       );
@@ -122,7 +173,7 @@ class _NewsCard extends StatelessWidget {
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!opened && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível abrir a notícia.')),
+        const SnackBar(content: Text('Nao foi possivel abrir a noticia.')),
       );
     }
   }
@@ -131,87 +182,52 @@ class _NewsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return DandiCard(
       onTap: () => _openArticle(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(14),
+      child: Row(
         children: [
-          Row(
-            children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.blue.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 4,
-                  ),
-                  child: Text(
-                    article.category.toUpperCase(),
-                    style: AppTextStyles.muted.copyWith(
-                      color: AppColors.blueBright,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-              const Spacer(),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      article.source,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.muted,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _publishedLabel,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.muted.copyWith(fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            article.title,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.subtitle,
-          ),
-          if (article.summary.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Expanded(
-              child: Text(
-                article.summary,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.muted,
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.blue.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.blue.withValues(alpha: 0.42)),
+            ),
+            child: const SizedBox(
+              width: 42,
+              height: 42,
+              child: Icon(
+                Icons.article_outlined,
+                color: AppColors.blueBright,
+                size: 20,
               ),
             ),
-          ],
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                'Abrir notícia',
-                style: AppTextStyles.muted.copyWith(
-                  color: AppColors.blueBright,
-                  fontWeight: FontWeight.w700,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  article.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.subtitle,
                 ),
-              ),
-              const SizedBox(width: 5),
-              const Icon(
-                Icons.open_in_new_rounded,
-                size: 16,
-                color: AppColors.blueBright,
-              ),
-            ],
+                const SizedBox(height: 5),
+                Text(
+                  '${article.source}  |  $_publishedLabel',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.muted.copyWith(fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(
+            Icons.open_in_new_rounded,
+            size: 17,
+            color: AppColors.muted,
           ),
         ],
       ),
