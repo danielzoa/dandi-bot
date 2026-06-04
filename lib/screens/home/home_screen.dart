@@ -12,6 +12,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/analysis_card.dart';
 import '../../widgets/asset_autocomplete_field.dart';
 import '../../widgets/dandi_bot_avatar.dart';
+import '../../widgets/news_strip.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -176,6 +177,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 22),
             _QuickActions(),
+            const SizedBox(height: 18),
+            const NewsStrip(),
           ],
         ),
       ),

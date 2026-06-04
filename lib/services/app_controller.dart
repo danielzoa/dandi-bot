@@ -8,6 +8,7 @@ import '../mock/mock_assets.dart';
 import '../models/analysis_result.dart';
 import '../models/asset.dart';
 import '../models/chat_message.dart';
+import '../models/news_article.dart';
 import '../models/portfolio_item.dart';
 import '../models/user_settings.dart';
 import '../utils/ticker_detector.dart';
@@ -58,6 +59,9 @@ class AppController extends ChangeNotifier {
   bool isLoadingAnalysis = false;
   bool isRefreshingQuotes = false;
   bool isChatTyping = false;
+  bool isRefreshingNews = false;
+  List<NewsArticle> newsArticles = [];
+  DateTime? newsUpdatedAt;
 
   Future<void> initialize() async {
     analysisHistory = await storage.loadAnalyses();
@@ -71,6 +75,21 @@ class AppController extends ChangeNotifier {
     tradingAgentsApi.baseUrl = settings.backendUrl;
     // Check backend health in background (non-blocking)
     checkBackendHealth();
+  }
+
+  Future<void> refreshNews({String? ticker}) async {
+    if (isRefreshingNews) return;
+    isRefreshingNews = true;
+    notifyListeners();
+    try {
+      newsArticles = await tradingAgentsApi.getNews(ticker: ticker);
+      newsUpdatedAt = DateTime.now();
+    } catch (e) {
+      debugPrint('[AppController] News refresh failed: $e');
+    } finally {
+      isRefreshingNews = false;
+      notifyListeners();
+    }
   }
 
   Future<AnalysisResult> analyzeTicker(String ticker) async {

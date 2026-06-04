@@ -19,6 +19,7 @@ class BottomNav extends StatelessWidget {
         'Carteira',
       ),
       _Destination(routeChat, Icons.chat_bubble_outline_rounded, 'Chat'),
+      _Destination(routeNews, Icons.newspaper_rounded, 'Noticias'),
       _Destination(routeSettings, Icons.person_outline_rounded, 'Perfil'),
     ];
     final index = destinations.indexWhere((item) => item.path == currentPath);

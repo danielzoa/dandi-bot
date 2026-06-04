@@ -23,6 +23,7 @@ class SideNav extends StatelessWidget {
       ),
       _NavItem(routeHistory, Icons.history_rounded, 'Histórico'),
       _NavItem(routeChat, Icons.chat_bubble_outline_rounded, 'Chat com IA'),
+      _NavItem(routeNews, Icons.newspaper_rounded, 'Noticias'),
       _NavItem(routeSettings, Icons.settings_rounded, 'Configurações'),
     ];
 

@@ -9,6 +9,7 @@ import 'screens/history/history_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/markets/market_catalog_screen.dart';
 import 'screens/markets/markets_screen.dart';
+import 'screens/news/news_screen.dart';
 import 'screens/portfolio/portfolio_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'services/app_controller.dart';
@@ -22,6 +23,7 @@ const routeAgents = '/agents';
 const routePortfolio = '/portfolio';
 const routeHistory = '/history';
 const routeChat = '/chat';
+const routeNews = '/news';
 const routeSettings = '/settings';
 const routeMarketCatalog = '/markets/catalog';
 
@@ -51,6 +53,7 @@ class DandiApp extends StatelessWidget {
       _route(routePortfolio, (_) => const PortfolioScreen()),
       _route(routeHistory, (_) => const HistoryScreen()),
       _route(routeChat, (_) => const ChatScreen()),
+      _route(routeNews, (_) => const NewsScreen()),
       _route(routeSettings, (_) => const SettingsScreen()),
     ],
   );

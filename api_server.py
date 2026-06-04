@@ -8,7 +8,7 @@ import json
 import uuid
 import os
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, AsyncGenerator
 
 from fastapi import FastAPI, BackgroundTasks, HTTPException
@@ -49,6 +49,13 @@ except ImportError:
     FINANCIAL_CHAT_AVAILABLE = False
     print("[WARN] financial_chat_graph nao esta disponivel.")
 
+try:
+    import yfinance as yf
+    YFINANCE_AVAILABLE = True
+except ImportError:
+    YFINANCE_AVAILABLE = False
+    print("[WARN] yfinance nao esta disponivel para o guia de noticias.")
+
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
@@ -88,6 +95,8 @@ sse_queues: dict[str, list[asyncio.Queue]] = {}
 conversation_histories: dict[str, list] = {}
 financial_chat_graph: Optional["FinancialChatGraph"] = None
 llm_client_init_lock = threading.Lock()
+news_cache: dict[str, dict] = {}
+news_cache_lock = threading.Lock()
 
 
 def _push_event(job_id: str, event: dict):
@@ -140,6 +149,88 @@ class JobResponse(BaseModel):
     error: Optional[str] = None
     logs: list[str] = []
     created_at: str
+
+
+def _news_article_data(article: dict, category: str) -> dict:
+    """Normalize the nested and flat formats returned by yfinance."""
+    nested = "content" in article
+    content = article.get("content", article)
+    provider = content.get("provider", {})
+    url = content.get("canonicalUrl") or content.get("clickThroughUrl") or {}
+    published_at = content.get("pubDate") or article.get("providerPublishTime")
+    source = provider.get("displayName", "Yahoo Finance") if nested else (
+        article.get("publisher", "Yahoo Finance")
+    )
+    link = url.get("url", "") if nested else article.get("link", "")
+
+    if isinstance(published_at, (int, float)):
+        published_at = datetime.fromtimestamp(
+            published_at, tz=timezone.utc
+        ).isoformat()
+    elif isinstance(published_at, datetime):
+        published_at = published_at.isoformat()
+
+    return {
+        "title": content.get("title") or article.get("title") or "Sem titulo",
+        "summary": content.get("summary") or article.get("summary") or "",
+        "source": source,
+        "url": link,
+        "published_at": published_at,
+        "category": category,
+    }
+
+
+def _sync_fetch_news(ticker: Optional[str], limit: int) -> dict:
+    """Fetch the same Yahoo Finance news inputs used by the news agents."""
+    if not YFINANCE_AVAILABLE:
+        raise RuntimeError("yfinance nao esta instalado.")
+
+    normalized_ticker = (ticker or "").strip().upper()
+    cache_key = f"{normalized_ticker}:{limit}"
+    now = datetime.now(timezone.utc)
+    with news_cache_lock:
+        cached = news_cache.get(cache_key)
+        if cached and (now - cached["cached_at"]).total_seconds() < 25:
+            return cached["payload"]
+
+    queries = [
+        ("macro", "Federal Reserve interest rates inflation"),
+        ("mercados", "S&P 500 earnings GDP economic outlook"),
+        ("geopolitica", "geopolitical risk trade war sanctions"),
+        ("commodities", "oil commodities supply chain energy"),
+    ]
+    articles = []
+    seen_titles = set()
+
+    if normalized_ticker:
+        for article in yf.Ticker(normalized_ticker).get_news(count=limit) or []:
+            data = _news_article_data(article, normalized_ticker)
+            if data["title"] not in seen_titles:
+                seen_titles.add(data["title"])
+                articles.append(data)
+
+    for category, query in queries:
+        search = yf.Search(query=query, news_count=limit, enable_fuzzy_query=True)
+        for article in search.news or []:
+            data = _news_article_data(article, category)
+            if data["title"] not in seen_titles:
+                seen_titles.add(data["title"])
+                articles.append(data)
+            if len(articles) >= limit:
+                break
+        if len(articles) >= limit:
+            break
+
+    payload = {
+        "articles": articles[:limit],
+        "ticker": normalized_ticker or None,
+        "updated_at": now.isoformat(),
+        "refresh_seconds": 30,
+        "source": "Yahoo Finance via TradingAgents",
+    }
+    with news_cache_lock:
+        news_cache[cache_key] = {"cached_at": now, "payload": payload}
+    return payload
 
 
 def _get_financial_chat_graph() -> "FinancialChatGraph":
@@ -277,6 +368,15 @@ async def list_providers():
              "env": None},
         ]
     }
+
+
+@app.get("/api/news")
+async def get_news(ticker: Optional[str] = None, limit: int = 16):
+    """Structured market headlines based on the TradingAgents news inputs."""
+    try:
+        return await asyncio.to_thread(_sync_fetch_news, ticker, max(1, min(limit, 30)))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.post("/api/analyze")

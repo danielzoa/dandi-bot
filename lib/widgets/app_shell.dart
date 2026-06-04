@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app.dart';
+import '../services/app_controller.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/responsive_layout.dart';
@@ -20,9 +23,25 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   final _scrollController = ScrollController();
+  Timer? _newsTimer;
+  bool _newsRefreshStarted = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_newsRefreshStarted) return;
+    _newsRefreshStarted = true;
+    final controller = DandiScope.of(context);
+    unawaited(controller.refreshNews());
+    _newsTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => unawaited(controller.refreshNews()),
+    );
+  }
 
   @override
   void dispose() {
+    _newsTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
