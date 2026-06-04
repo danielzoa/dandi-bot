@@ -1,9 +1,10 @@
 import asyncio
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import api_server
+from fastapi import BackgroundTasks
 from langchain_core.messages import AIMessage, HumanMessage
 
 
@@ -75,6 +76,45 @@ class FinancialChatEndpointTest(unittest.TestCase):
         finally:
             if previous_key is not None:
                 os.environ["GOOGLE_API_KEY"] = previous_key
+
+    def test_brazilian_analysis_job_exposes_brazil_context(self):
+        context = {"macro": {"selic_meta": 14.5}, "fundamentals": {"ticker": "PETR4"}}
+        request = api_server.AnalyzeRequest(ticker="PETR4.SA", date="2026-06-04")
+        with patch.object(
+            api_server,
+            "_prepare_brazil_context",
+            new=AsyncMock(return_value=(context, "Macro BR")),
+        ):
+            response = asyncio.run(api_server.start_analysis(request, BackgroundTasks()))
+
+        self.assertEqual(response["brazil_context"], context)
+        self.assertEqual(api_server.jobs[response["job_id"]]["context_notes"], "Macro BR")
+
+    def test_brazil_context_is_injected_into_tradingagents_instrument_context(self):
+        captured = {}
+
+        class FakeTradingAgentsGraph:
+            def __init__(self, **kwargs):
+                captured["config"] = kwargs["config"]
+
+            def resolve_instrument_context(self, ticker, asset_type="stock"):
+                return f"Instrument: {ticker}"
+
+            def propagate(self, ticker, date):
+                captured["instrument_context"] = self.resolve_instrument_context(ticker)
+                return {}, "done"
+
+        job_id = "brazil-context-job"
+        api_server.jobs[job_id] = {
+            "brazil_context": {"macro": {"selic_meta": 14.5}},
+            "context_notes": "Macro BR | Selic: 14,50% a.a.",
+        }
+        request = api_server.AnalyzeRequest(ticker="PETR4.SA", date="2026-06-04")
+        with patch.object(api_server, "TradingAgentsGraph", FakeTradingAgentsGraph):
+            api_server._sync_run_analysis(job_id, request)
+
+        self.assertIn("Selic: 14,50%", captured["instrument_context"])
+        self.assertIn("brazil_context", captured["config"])
 
 
 if __name__ == "__main__":

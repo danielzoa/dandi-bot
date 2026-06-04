@@ -16,7 +16,16 @@ class NewsScreen extends StatelessWidget {
     final controller = DandiScope.of(context);
     final updatedAt = controller.newsUpdatedAt;
     final groupedArticles = <String, List<NewsArticle>>{};
-    for (final article in controller.newsArticles) {
+    final sortedArticles = [...controller.newsArticles]
+      ..sort((a, b) {
+        final aDate = a.publishedAt;
+        final bDate = b.publishedAt;
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return bDate.compareTo(aDate);
+      });
+    for (final article in sortedArticles) {
       groupedArticles.putIfAbsent(article.category, () => []).add(article);
     }
 
@@ -33,8 +42,8 @@ class NewsScreen extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     updatedAt == null
-                        ? 'Radar macroeconomico usado pelos agentes.'
-                        : 'Atualizado as ${DateFormat.Hm('pt_BR').format(updatedAt)}. Atualizacao automatica a cada 30s.',
+                        ? 'Radar das ultimas 72 horas usado pelos agentes.'
+                        : 'Atualizado as ${DateFormat.Hm('pt_BR').format(updatedAt)}. Mais novas primeiro.',
                     style: AppTextStyles.muted,
                   ),
                 ],
@@ -61,6 +70,8 @@ class NewsScreen extends StatelessWidget {
             child: Text(
               controller.isRefreshingNews
                   ? 'Consultando o radar dos agentes...'
+                  : controller.isBackendOnline
+                  ? 'Nenhuma noticia verificavelmente recente foi encontrada nas ultimas 72 horas.'
                   : 'Nao foi possivel carregar noticias. Verifique se o backend esta online.',
               style: AppTextStyles.muted,
             ),

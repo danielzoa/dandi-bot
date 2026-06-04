@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
@@ -52,15 +53,22 @@ class FinancialChatGraphTest(unittest.TestCase):
             synthesis_model=synthesis,
         )
 
-        result = asyncio.run(
-            graph.ainvoke(
-                "Analise PETR4.",
-                history=[
-                    HumanMessage(content="Quero entender empresas brasileiras."),
-                    AIMessage(content="Vamos avaliar fundamentos e riscos."),
-                ],
+        with patch(
+            "financial_chat_graph._brazil_fundamental_context",
+            new=AsyncMock(return_value=""),
+        ), patch(
+            "financial_chat_graph._brazil_news_context",
+            new=AsyncMock(return_value=""),
+        ):
+            result = asyncio.run(
+                graph.ainvoke(
+                    "Analise PETR4.",
+                    history=[
+                        HumanMessage(content="Quero entender empresas brasileiras."),
+                        AIMessage(content="Vamos avaliar fundamentos e riscos."),
+                    ],
+                )
             )
-        )
 
         self.assertTrue(result["gatekeeper_passed"])
         self.assertTrue(result["fundamental_analysis"].startswith("Fundamentos"))

@@ -7,14 +7,36 @@ import asyncio
 import json
 import uuid
 import os
+import sys
 import threading
-from datetime import datetime, timezone
+import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional, AsyncGenerator
 
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+
+# The runtime copy lives inside TradingAgents/. Prefer the tracked project-root
+# modules without copying integration services into the upstream framework.
+_module_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = (
+    os.path.dirname(_module_dir)
+    if os.path.basename(_module_dir).lower() == "tradingagents"
+    else _module_dir
+)
+if _project_root in sys.path:
+    sys.path.remove(_project_root)
+sys.path.insert(0, _project_root)
+
+from brazil_macro_service import get_macro_context, format_macro_for_prompt
+from brazil_news_service import fetch_brazil_news
+from brapi_fundamentals_service import (
+    is_brazilian_ticker,
+    get_brapi_fundamentals,
+    format_fundamentals_for_prompt,
+)
 
 # Load API keys before importing TradingAgents. This works whether api_server.py
 # runs from the project root or from the copied TradingAgents directory.
@@ -97,6 +119,7 @@ financial_chat_graph: Optional["FinancialChatGraph"] = None
 llm_client_init_lock = threading.Lock()
 news_cache: dict[str, dict] = {}
 news_cache_lock = threading.Lock()
+logger = logging.getLogger(__name__)
 
 
 def _push_event(job_id: str, event: dict):
@@ -149,6 +172,7 @@ class JobResponse(BaseModel):
     error: Optional[str] = None
     logs: list[str] = []
     created_at: str
+    brazil_context: Optional[dict] = None
 
 
 def _news_article_data(article: dict, category: str) -> dict:
@@ -180,6 +204,19 @@ def _news_article_data(article: dict, category: str) -> dict:
     }
 
 
+def _article_published_at(article: dict) -> Optional[datetime]:
+    published_at = article.get("published_at")
+    if not published_at:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(published_at).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
 def _sync_fetch_news(ticker: Optional[str], limit: int) -> dict:
     """Fetch the same Yahoo Finance news inputs used by the news agents."""
     if not YFINANCE_AVAILABLE:
@@ -194,10 +231,10 @@ def _sync_fetch_news(ticker: Optional[str], limit: int) -> dict:
             return cached["payload"]
 
     queries = [
-        ("macro", "Federal Reserve interest rates inflation"),
-        ("mercados", "S&P 500 earnings GDP economic outlook"),
-        ("geopolitica", "geopolitical risk trade war sanctions"),
-        ("commodities", "oil commodities supply chain energy"),
+        ("macro", "latest economy central bank inflation news today"),
+        ("mercados", "latest stock market earnings news today"),
+        ("geopolitica", "latest geopolitical trade sanctions news today"),
+        ("commodities", "latest oil commodities energy news today"),
     ]
     articles = []
     seen_titles = set()
@@ -216,16 +253,35 @@ def _sync_fetch_news(ticker: Optional[str], limit: int) -> dict:
             if data["title"] not in seen_titles:
                 seen_titles.add(data["title"])
                 articles.append(data)
-            if len(articles) >= limit:
-                break
-        if len(articles) >= limit:
-            break
+
+    recent_cutoff = now - timedelta(hours=72)
+    future_limit = now + timedelta(hours=2)
+    recent_articles = [
+        article
+        for article in articles
+        if (
+            (published := _article_published_at(article)) is not None
+            and recent_cutoff <= published <= future_limit
+        )
+    ]
+    recent_articles.sort(
+        key=lambda article: _article_published_at(article) or recent_cutoff,
+        reverse=True,
+    )
+    today_cutoff = now - timedelta(hours=24)
+    today_count = sum(
+        1
+        for article in recent_articles
+        if (_article_published_at(article) or recent_cutoff) >= today_cutoff
+    )
 
     payload = {
-        "articles": articles[:limit],
+        "articles": recent_articles[:limit],
         "ticker": normalized_ticker or None,
         "updated_at": now.isoformat(),
         "refresh_seconds": 30,
+        "lookback_hours": 72,
+        "today_count": today_count,
         "source": "Yahoo Finance via TradingAgents",
     }
     with news_cache_lock:
@@ -262,6 +318,11 @@ def _sync_run_analysis(job_id: str, req: AnalyzeRequest):
     config["quick_think_llm"] = req.quick_think_llm
     config["max_debate_rounds"] = req.max_debate_rounds
     config["checkpoint_enabled"] = req.checkpoint_enabled
+    brazil_context = jobs.get(job_id, {}).get("brazil_context")
+    context_notes = jobs.get(job_id, {}).get("context_notes", "")
+    if brazil_context:
+        config["brazil_context"] = brazil_context
+        config["brazil_context_notes"] = context_notes
 
     with llm_client_init_lock:
         previous_google_key = os.environ.get("GOOGLE_API_KEY")
@@ -269,6 +330,20 @@ def _sync_run_analysis(job_id: str, req: AnalyzeRequest):
             os.environ["GOOGLE_API_KEY"] = req.api_key
         try:
             ta = TradingAgentsGraph(debug=True, config=config)
+            if context_notes:
+                original_resolve_context = ta.resolve_instrument_context
+
+                def resolve_with_brazil_context(
+                    ticker: str, asset_type: str = "stock"
+                ) -> str:
+                    base_context = original_resolve_context(ticker, asset_type)
+                    return (
+                        f"{base_context}\n\n"
+                        "Verified Brazilian market context:\n"
+                        f"{context_notes}"
+                    )
+
+                ta.resolve_instrument_context = resolve_with_brazil_context
         finally:
             if req.llm_provider.lower() == "google" and req.api_key:
                 if previous_google_key is None:
@@ -299,6 +374,8 @@ async def _run_analysis_job(job_id: str, req: AnalyzeRequest):
             result = decision
         else:
             result = {"raw": str(decision)}
+        if jobs[job_id].get("brazil_context"):
+            result["brazil_context"] = jobs[job_id]["brazil_context"]
 
         jobs[job_id].update({
             "status": "done",
@@ -372,11 +449,83 @@ async def list_providers():
 
 @app.get("/api/news")
 async def get_news(ticker: Optional[str] = None, limit: int = 16):
-    """Structured market headlines based on the TradingAgents news inputs."""
+    """Structured global and Brazilian market headlines."""
+    safe_limit = max(1, min(limit, 30))
     try:
-        return await asyncio.to_thread(_sync_fetch_news, ticker, max(1, min(limit, 30)))
+        yahoo_result, brazil_result = await asyncio.gather(
+            asyncio.to_thread(_sync_fetch_news, ticker, safe_limit),
+            fetch_brazil_news(max_per_feed=5),
+            return_exceptions=True,
+        )
+        yahoo_payload = yahoo_result if isinstance(yahoo_result, dict) else {
+            "articles": [],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "refresh_seconds": 30,
+            "lookback_hours": 72,
+            "today_count": 0,
+            "source": "Yahoo Finance via TradingAgents",
+        }
+        brazil_articles = brazil_result if isinstance(brazil_result, list) else []
+        merged: dict[str, dict] = {}
+        for article in [*yahoo_payload.get("articles", []), *brazil_articles]:
+            published = _article_published_at(article)
+            if published is None:
+                continue
+            key = article.get("url") or article.get("title")
+            if key:
+                merged.setdefault(key, article)
+        articles = sorted(
+            merged.values(),
+            key=lambda article: _article_published_at(article)
+            or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )[:safe_limit]
+        return {
+            **yahoo_payload,
+            "articles": articles,
+            "today_count": sum(
+                1
+                for article in articles
+                if (_article_published_at(article) or datetime.min.replace(
+                    tzinfo=timezone.utc
+                )) >= datetime.now(timezone.utc) - timedelta(hours=24)
+            ),
+            "brazil_count": sum(1 for article in articles if article.get("brazil")),
+        }
     except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/api/macro")
+async def get_macro():
+    """Return the current Brazilian macroeconomic snapshot."""
+    try:
+        return await asyncio.to_thread(get_macro_context)
+    except Exception as exc:
+        logger.warning("Falha total ao buscar contexto macro BCB: %s", exc)
+        return {"error": "BCB indisponivel", "data": {}}
+
+
+async def _prepare_brazil_context(ticker: str) -> tuple[dict | None, str]:
+    if not is_brazilian_ticker(ticker):
+        return None, ""
+    macro, fundamentals = await asyncio.gather(
+        asyncio.to_thread(get_macro_context),
+        get_brapi_fundamentals(ticker),
+        return_exceptions=True,
+    )
+    macro_data = macro if isinstance(macro, dict) else {}
+    fundamental_data = fundamentals if isinstance(fundamentals, dict) else None
+    context = {"macro": macro_data, "fundamentals": fundamental_data}
+    notes = "\n".join(
+        part
+        for part in [
+            format_macro_for_prompt(macro_data),
+            format_fundamentals_for_prompt(fundamental_data),
+        ]
+        if part
+    )
+    return context, notes
 
 
 @app.post("/api/analyze")
@@ -385,6 +534,7 @@ async def start_analysis(req: AnalyzeRequest, background_tasks: BackgroundTasks)
     Dispara uma análise de trading em background.
     Retorna job_id para polling / SSE.
     """
+    brazil_context, context_notes = await _prepare_brazil_context(req.ticker)
     job_id = str(uuid.uuid4())
     jobs[job_id] = {
         "status": "pending",
@@ -394,10 +544,16 @@ async def start_analysis(req: AnalyzeRequest, background_tasks: BackgroundTasks)
         "created_at": datetime.utcnow().isoformat(),
         "ticker": req.ticker,
         "date": req.date,
+        "brazil_context": brazil_context,
+        "context_notes": context_notes,
     }
     sse_queues[job_id] = []
     background_tasks.add_task(_run_analysis_job, job_id, req)
-    return {"job_id": job_id, "status": "pending"}
+    return {
+        "job_id": job_id,
+        "status": "pending",
+        "brazil_context": brazil_context,
+    }
 
 
 @app.get("/api/status/{job_id}", response_model=JobResponse)
@@ -413,6 +569,7 @@ async def job_status(job_id: str):
         error=job.get("error"),
         logs=job.get("logs", []),
         created_at=job.get("created_at", ""),
+        brazil_context=job.get("brazil_context"),
     )
 
 
