@@ -86,6 +86,19 @@ class AppController extends ChangeNotifier {
       newsUpdatedAt = DateTime.now();
     } catch (e) {
       debugPrint('[AppController] News refresh failed: $e');
+      newsArticles = [
+        NewsArticle(
+          title: 'Radar aguardando backend publico',
+          summary:
+              'No Web publicado, noticias em tempo real dependem de um backend HTTPS conectado ao Dandi Bot.',
+          source: 'Dandi Bot',
+          url: '',
+          category: 'mercados',
+          agentName: 'Analista de Noticias',
+          publishedAt: DateTime.now(),
+        ),
+      ];
+      newsUpdatedAt = DateTime.now();
     } finally {
       isRefreshingNews = false;
       notifyListeners();
