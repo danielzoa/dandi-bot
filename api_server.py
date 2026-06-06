@@ -87,18 +87,26 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS: libera o Vite em dev (:5173) e preview (:4173)
+# CORS: libera desenvolvimento local, Netlify legado e Cloudflare Pages.
+_default_cors_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://dandibot.netlify.app",
+]
+_extra_cors_origins = [
+    origin.strip()
+    for origin in os.getenv("DANDI_CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:4173",
-        "http://127.0.0.1:4173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://dandibot.netlify.app",
-    ],
+    allow_origins=[*_default_cors_origins, *_extra_cors_origins],
+    allow_origin_regex=r"https://.*\.pages\.dev",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

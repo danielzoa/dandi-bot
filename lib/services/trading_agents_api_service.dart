@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/news_article.dart';
+import '../models/user_settings.dart';
 
 /// Service that communicates with the TradingAgents FastAPI backend
 /// (api_server.py running on :8000).
@@ -10,7 +11,7 @@ import '../models/news_article.dart';
 /// Provides: health check, chat, analysis, job polling, diagnostics.
 class TradingAgentsApiService {
   TradingAgentsApiService({String? baseUrl})
-    : _baseUrl = baseUrl ?? 'http://127.0.0.1:8000';
+    : _baseUrl = baseUrl ?? defaultBackendUrl;
 
   String _baseUrl;
 

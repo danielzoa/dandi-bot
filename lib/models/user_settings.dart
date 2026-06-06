@@ -4,6 +4,11 @@ import '../enums/currency.dart';
 import '../enums/investor_profile.dart';
 import '../enums/time_horizon.dart';
 
+const defaultBackendUrl = String.fromEnvironment(
+  'DANDI_BACKEND_URL',
+  defaultValue: 'http://127.0.0.1:8000',
+);
+
 class UserSettings {
   const UserSettings({
     required this.themeMode,
@@ -11,7 +16,7 @@ class UserSettings {
     required this.timeHorizon,
     required this.currency,
     this.geminiApiKey,
-    this.backendUrl = 'http://127.0.0.1:8000',
+    this.backendUrl = defaultBackendUrl,
   });
 
   final ThemeMode themeMode;
@@ -27,7 +32,7 @@ class UserSettings {
     timeHorizon: TimeHorizon.longTerm,
     currency: Currency.brl,
     geminiApiKey: null,
-    backendUrl: 'http://127.0.0.1:8000',
+    backendUrl: defaultBackendUrl,
   );
 
   UserSettings copyWith({
@@ -66,8 +71,7 @@ class UserSettings {
       timeHorizon: TimeHorizon.values.byName(json['timeHorizon'] as String),
       currency: Currency.values.byName(json['currency'] as String),
       geminiApiKey: json['geminiApiKey'] as String?,
-      backendUrl: json['backendUrl'] as String? ?? 'http://127.0.0.1:8000',
+      backendUrl: json['backendUrl'] as String? ?? defaultBackendUrl,
     );
   }
 }
-

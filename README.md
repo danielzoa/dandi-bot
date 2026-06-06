@@ -116,6 +116,32 @@ flutter build windows --release
 flutter build web --release
 ```
 
+### Deploy no Cloudflare Pages
+
+O Cloudflare Pages hospeda o frontend Flutter Web. O backend FastAPI
+(`api_server.py`) continua em um host Python separado.
+
+Configuracao recomendada no Cloudflare Pages:
+
+```txt
+Build command: bash scripts/build_cloudflare_pages.sh
+Build output directory: build/web
+Environment variable: DANDI_BACKEND_URL=https://SEU-BACKEND-PUBLICO
+```
+
+O projeto inclui:
+
+- `web/_redirects` para fallback de SPA;
+- `functions/api/tradingview/[[path]].js` para preservar o proxy
+  `/api/tradingview/*`;
+- `docs/CLOUDFLARE_PAGES.md` com o checklist de publicacao.
+
+No host do backend, configure `DANDI_CORS_ORIGINS` com os dominios do frontend:
+
+```txt
+https://seu-projeto.pages.dev,https://seu-dominio.com
+```
+
 ## 🔑 Configuração de API Keys
 
 Edite o arquivo `TradingAgents/.env`:
