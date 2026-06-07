@@ -19,6 +19,7 @@ The repository also includes `wrangler.toml` for CLI-based Pages deploys.
 - Flutter Web static assets from `build/web`
 - SPA fallback through `web/_redirects`
 - Basic security/cache headers through `web/_headers`
+- News endpoint through `functions/api/news.js`
 - TradingView proxy through `functions/api/tradingview/[[path]].js`
 
 ## What stays outside Pages

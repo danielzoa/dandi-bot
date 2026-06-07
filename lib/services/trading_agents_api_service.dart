@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/news_article.dart';
@@ -194,12 +195,7 @@ class TradingAgentsApiService {
 
   /// GET /api/news - headlines from the same source used by the news agents.
   Future<List<NewsArticle>> getNews({String? ticker, int limit = 16}) async {
-    final uri = Uri.parse('$_baseUrl/api/news').replace(
-      queryParameters: {
-        'limit': '$limit',
-        if (ticker != null && ticker.trim().isNotEmpty) 'ticker': ticker.trim(),
-      },
-    );
+    final uri = _newsUri(ticker: ticker, limit: limit);
     final response = await http.get(uri).timeout(const Duration(seconds: 15));
     if (response.statusCode != 200) {
       throw Exception('News fetch failed: ${response.statusCode}');
@@ -209,6 +205,34 @@ class TradingAgentsApiService {
     return articles
         .map((item) => NewsArticle.fromJson(item as Map<String, dynamic>))
         .toList();
+  }
+
+  Uri _newsUri({String? ticker, required int limit}) {
+    final queryParameters = {
+      'limit': '$limit',
+      if (ticker != null && ticker.trim().isNotEmpty) 'ticker': ticker.trim(),
+    };
+    const newsUrl = String.fromEnvironment('DANDI_NEWS_URL');
+    if (newsUrl.trim().isNotEmpty) {
+      return Uri.parse(newsUrl).replace(queryParameters: queryParameters);
+    }
+    if (kIsWeb && _shouldUseEdgeNews) {
+      return Uri.base.resolve('/api/news').replace(
+        queryParameters: queryParameters,
+      );
+    }
+    return Uri.parse(
+      '$_baseUrl/api/news',
+    ).replace(queryParameters: queryParameters);
+  }
+
+  bool get _shouldUseEdgeNews {
+    final uri = Uri.tryParse(_baseUrl);
+    final host = uri?.host.toLowerCase() ?? '';
+    return host == 'api.example.com' ||
+        host == '127.0.0.1' ||
+        host == 'localhost' ||
+        host.isEmpty;
   }
 
   /// Returns whether the backend has an API key configured for [provider].
