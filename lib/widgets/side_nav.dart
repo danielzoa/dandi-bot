@@ -25,8 +25,8 @@ class SideNav extends StatelessWidget {
       _NavItem(routeAnalysis, Icons.show_chart_rounded, 'Grafico'),
       _NavItem(routeNews, Icons.newspaper_rounded, 'Noticias'),
       _NavItem(routeChat, Icons.smart_toy_outlined, 'IA'),
-      _NavItem(routeMarketCatalog, Icons.filter_list_rounded, 'Screeners'),
-      _NavItem(routeHistory, Icons.notifications_rounded, 'Alertas'),
+      _NavItem.custom(routeMarketCatalog, 'screeners', 'Screeners'),
+      _NavItem.custom(routeHistory, 'alerts', 'Alertas'),
       _NavItem(routeSettings, Icons.settings_rounded, 'Configuracoes'),
     ];
 
@@ -117,11 +117,7 @@ class _NavButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
-                Icon(
-                  item.icon,
-                  color: active ? AppColors.blueBright : AppColors.muted,
-                  size: 20,
-                ),
+                _NavIcon(item: item, active: active),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -212,11 +208,140 @@ class _ConnectionStatus extends StatelessWidget {
   }
 }
 
+class _NavIcon extends StatelessWidget {
+  const _NavIcon({required this.item, required this.active});
+
+  final _NavItem item;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? AppColors.blueBright : AppColors.muted;
+    final customIcon = item.customIcon;
+
+    if (customIcon == 'screeners') {
+      return CustomPaint(
+        size: const Size.square(20),
+        painter: _ScreenersIconPainter(color),
+      );
+    }
+
+    if (customIcon == 'alerts') {
+      return CustomPaint(
+        size: const Size.square(20),
+        painter: _AlertsIconPainter(color),
+      );
+    }
+
+    return Icon(item.icon, color: color, size: 20);
+  }
+}
+
+class _ScreenersIconPainter extends CustomPainter {
+  const _ScreenersIconPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1.8
+      ..style = PaintingStyle.stroke;
+    final knobPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final lines = [(0.22, 0.32, 0.70), (0.50, 0.48, 0.30), (0.78, 0.66, 0.56)];
+
+    for (final line in lines) {
+      final y = size.height * line.$1;
+      canvas.drawLine(
+        Offset(size.width * 0.12, y),
+        Offset(size.width * 0.88, y),
+        paint,
+      );
+      canvas.drawCircle(
+        Offset(size.width * line.$2, y),
+        size.width * 0.075,
+        knobPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScreenersIconPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
+}
+
+class _AlertsIconPainter extends CustomPainter {
+  const _AlertsIconPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = 1.8
+      ..style = PaintingStyle.stroke;
+
+    final centerX = size.width * 0.5;
+    final top = size.height * 0.22;
+    final bottom = size.height * 0.72;
+    final path = Path()
+      ..moveTo(centerX, top)
+      ..cubicTo(
+        size.width * 0.28,
+        top,
+        size.width * 0.22,
+        size.height * 0.42,
+        size.width * 0.22,
+        bottom,
+      )
+      ..lineTo(size.width * 0.78, bottom)
+      ..cubicTo(
+        size.width * 0.78,
+        size.height * 0.42,
+        size.width * 0.72,
+        top,
+        centerX,
+        top,
+      );
+    canvas.drawPath(path, paint);
+    canvas.drawLine(
+      Offset(size.width * 0.18, bottom),
+      Offset(size.width * 0.82, bottom),
+      paint,
+    );
+    canvas.drawCircle(
+      Offset(centerX, size.height * 0.84),
+      size.width * 0.06,
+      Paint()..color = color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _AlertsIconPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
+}
+
 class _NavItem {
-  const _NavItem(this.path, this.icon, this.label, [this.subtitle]);
+  const _NavItem(this.path, this.icon, this.label, [this.subtitle])
+    : customIcon = null;
+
+  const _NavItem.custom(this.path, this.customIcon, this.label)
+    : icon = null,
+      subtitle = null;
 
   final String path;
-  final IconData icon;
+  final IconData? icon;
+  final String? customIcon;
   final String label;
   final String? subtitle;
 }
