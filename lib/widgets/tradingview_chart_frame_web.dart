@@ -20,7 +20,7 @@ class TradingViewChartFrame extends StatelessWidget {
     _registerViewFactory(viewType, asset);
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
       child: HtmlElementView(viewType: viewType),
     );
   }
@@ -45,7 +45,7 @@ web.HTMLElement _buildTradingViewElement(Asset asset) {
   container.style.width = '100%';
   container.style.height = '100%';
   container.style.overflow = 'hidden';
-  container.style.backgroundColor = '#0f172a';
+  container.style.backgroundColor = '#05070d';
 
   final widget = web.document.createElement('div') as web.HTMLDivElement;
   widget.className = 'tradingview-widget-container';
@@ -64,7 +64,7 @@ web.HTMLElement _buildTradingViewElement(Asset asset) {
   copyright.style.alignItems = 'center';
   copyright.style.justifyContent = 'center';
   copyright.style.font = '12px Inter, Arial, sans-serif';
-  copyright.style.backgroundColor = '#0f172a';
+  copyright.style.backgroundColor = '#05070d';
 
   final link = web.document.createElement('a') as web.HTMLAnchorElement;
   link.href = MarketDataSymbols.tradingViewUrl(asset).toString();
@@ -97,8 +97,8 @@ web.HTMLElement _buildTradingViewElement(Asset asset) {
     'symbol': MarketDataSymbols.tradingViewPrimarySymbol(asset),
     'theme': 'dark',
     'timezone': 'America/Sao_Paulo',
-    'backgroundColor': '#0f172a',
-    'gridColor': 'rgba(148, 163, 184, 0.16)',
+    'backgroundColor': '#05070d',
+    'gridColor': 'rgba(56, 189, 248, 0.10)',
     'withdateranges': true,
     'compareSymbols': [],
     'studies': [],

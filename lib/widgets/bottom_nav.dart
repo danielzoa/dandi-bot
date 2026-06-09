@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app.dart';
+import '../theme/app_colors.dart';
 
 class BottomNav extends StatelessWidget {
   const BottomNav({super.key, required this.currentPath});
@@ -11,7 +12,7 @@ class BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final destinations = [
-      _Destination(routeHome, Icons.home_rounded, 'Home'),
+      _Destination(routeHome, Icons.dashboard_rounded, 'Dash'),
       _Destination(routeMarkets, Icons.query_stats_rounded, 'Mercados'),
       _Destination(
         routePortfolio,
@@ -19,18 +20,24 @@ class BottomNav extends StatelessWidget {
         'Carteira',
       ),
       _Destination(routeChat, Icons.chat_bubble_outline_rounded, 'Chat'),
-      _Destination(routeNews, Icons.newspaper_rounded, 'Noticias'),
-      _Destination(routeSettings, Icons.person_outline_rounded, 'Perfil'),
+      _Destination(routeNews, Icons.newspaper_rounded, 'News'),
+      _Destination(routeSettings, Icons.tune_rounded, 'Prefs'),
     ];
     final index = destinations.indexWhere((item) => item.path == currentPath);
 
-    return NavigationBar(
-      selectedIndex: index < 0 ? 0 : index,
-      onDestinationSelected: (next) => context.go(destinations[next].path),
-      destinations: [
-        for (final item in destinations)
-          NavigationDestination(icon: Icon(item.icon), label: item.label),
-      ],
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: NavigationBar(
+        height: 68,
+        selectedIndex: index < 0 ? 0 : index,
+        onDestinationSelected: (next) => context.go(destinations[next].path),
+        destinations: [
+          for (final item in destinations)
+            NavigationDestination(icon: Icon(item.icon), label: item.label),
+        ],
+      ),
     );
   }
 }

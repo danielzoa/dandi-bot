@@ -86,41 +86,195 @@ class _AppShellState extends State<AppShell> {
           autofocus: true,
           child: Scaffold(
             bottomNavigationBar: mobile ? BottomNav(currentPath: path) : null,
-            body: Row(
+            body: Stack(
               children: [
-                if (!mobile) SideNav(currentPath: path),
-                Expanded(
-                  child: SafeArea(
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: Scrollbar(
-                            controller: _scrollController,
-                            thumbVisibility: !mobile,
-                            child: SingleChildScrollView(
-                              controller: _scrollController,
-                              padding: EdgeInsets.all(mobile ? 14 : 22),
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 1280,
+                const _TerminalBackground(),
+                Row(
+                  children: [
+                    if (!mobile) SideNav(currentPath: path),
+                    Expanded(
+                      child: SafeArea(
+                        child: Column(
+                          children: [
+                            _TopHeader(mobile: mobile),
+                            Expanded(
+                              child: Scrollbar(
+                                controller: _scrollController,
+                                thumbVisibility: !mobile,
+                                child: SingleChildScrollView(
+                                  controller: _scrollController,
+                                  padding: EdgeInsets.all(mobile ? 14 : 20),
+                                  child: Align(
+                                    alignment: Alignment.topCenter,
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 1480,
+                                      ),
+                                      child: widget.child,
+                                    ),
+                                  ),
                                 ),
-                                child: widget.child,
                               ),
                             ),
-                          ),
+                            _EducationalFooter(
+                              onHelp: () => _showShortcutHelp(context),
+                            ),
+                          ],
                         ),
-                        _EducationalFooter(
-                          onHelp: () => _showShortcutHelp(context),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _TerminalBackground extends StatelessWidget {
+  const _TerminalBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(-0.92, -1),
+            radius: 1.25,
+            colors: [Color(0x291D4ED8), AppColors.background],
+            stops: [0, 0.58],
+          ),
+        ),
+        child: CustomPaint(painter: _GridPainter()),
+      ),
+    );
+  }
+}
+
+class _GridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.blueBright.withValues(alpha: 0.035)
+      ..strokeWidth = 1;
+    const step = 32.0;
+
+    for (var x = 0.0; x <= size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (var y = 0.0; y <= size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _TopHeader extends StatelessWidget {
+  const _TopHeader({required this.mobile});
+
+  final bool mobile;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.backgroundDeep.withValues(alpha: 0.84),
+        border: const Border(bottom: BorderSide(color: AppColors.border)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.blueBright.withValues(alpha: 0.05),
+            blurRadius: 28,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: mobile ? 12 : 20,
+          vertical: mobile ? 10 : 12,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                textInputAction: TextInputAction.search,
+                onSubmitted: (value) {
+                  final ticker = value.trim();
+                  if (ticker.isEmpty) return;
+                  context.go(
+                    '$routeAnalysis?ticker=${Uri.encodeComponent(ticker)}',
+                  );
+                },
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search_rounded, size: 20),
+                  hintText: 'Buscar ticker, ativo ou pergunta...',
+                  isDense: true,
+                ),
+              ),
+            ),
+            if (!mobile) ...[const SizedBox(width: 18), const _MarketStatus()],
+            const SizedBox(width: 10),
+            IconButton(
+              tooltip: 'Noticias',
+              onPressed: () => context.go(routeNews),
+              icon: const Icon(Icons.notifications_none_rounded),
+            ),
+            IconButton(
+              tooltip: 'Configuracoes',
+              onPressed: () => context.go(routeSettings),
+              icon: const Icon(Icons.tune_rounded),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MarketStatus extends StatelessWidget {
+  const _MarketStatus();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('Mercados', style: AppTextStyles.muted),
+        const SizedBox(width: 10),
+        const _StatusDot(),
+        const SizedBox(width: 6),
+        Text(
+          'Aberto',
+          style: AppTextStyles.muted.copyWith(color: AppColors.teal),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusDot extends StatelessWidget {
+  const _StatusDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.teal,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.teal.withValues(alpha: 0.35),
+            blurRadius: 12,
+          ),
+        ],
+      ),
+      child: const SizedBox(width: 8, height: 8),
     );
   }
 }
@@ -210,7 +364,7 @@ class _EducationalFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: const BoxDecoration(
-        color: AppColors.background,
+        color: AppColors.backgroundDeep,
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: Padding(

@@ -14,25 +14,35 @@ class SideNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      _NavItem(routeHome, Icons.home_rounded, 'Home'),
-      _NavItem(routeMarkets, Icons.query_stats_rounded, 'Mercados'),
+      _NavItem(routeHome, Icons.dashboard_rounded, 'Dashboard', 'Visao geral'),
+      _NavItem(routeMarkets, Icons.query_stats_rounded, 'Mercado'),
       _NavItem(
         routePortfolio,
         Icons.account_balance_wallet_rounded,
-        'Carteira Simulada',
+        'Carteira',
+        'Posicoes e performance',
       ),
-      _NavItem(routeHistory, Icons.history_rounded, 'Histórico'),
-      _NavItem(routeChat, Icons.chat_bubble_outline_rounded, 'Chat com IA'),
+      _NavItem(routeAnalysis, Icons.candlestick_chart_rounded, 'Grafico'),
       _NavItem(routeNews, Icons.newspaper_rounded, 'Noticias'),
-      _NavItem(routeSettings, Icons.settings_rounded, 'Configurações'),
+      _NavItem(routeChat, Icons.psychology_alt_outlined, 'IA'),
+      _NavItem(routeMarketCatalog, Icons.filter_alt_outlined, 'Screeners'),
+      _NavItem(routeHistory, Icons.notifications_none_rounded, 'Alertas'),
+      _NavItem(routeSettings, Icons.settings_rounded, 'Configuracoes'),
     ];
 
     return SizedBox(
       width: 240,
       child: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          border: Border(right: BorderSide(color: AppColors.border)),
+        decoration: BoxDecoration(
+          color: AppColors.backgroundDeep.withValues(alpha: 0.92),
+          border: const Border(right: BorderSide(color: AppColors.border)),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.blueBright.withValues(alpha: 0.04),
+              blurRadius: 32,
+              offset: const Offset(12, 0),
+            ),
+          ],
         ),
         child: SafeArea(
           child: Padding(
@@ -44,58 +54,33 @@ class SideNav extends StatelessWidget {
                   children: [
                     const DandiBotAvatar(size: 42),
                     const SizedBox(width: 10),
-                    Text('Dandi Bot', style: AppTextStyles.subtitle),
+                    Expanded(
+                      child: Text(
+                        'DanDiBot',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.title,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
                 for (final item in items)
-                  _NavButton(item: item, active: currentPath == item.path),
+                  _NavButton(item: item, active: _isActive(item.path)),
                 const Spacer(),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceAlt.withValues(alpha: 0.45),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        const CircleAvatar(
-                          radius: 18,
-                          backgroundColor: AppColors.blue,
-                          child: Icon(Icons.person, size: 18),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Investidor',
-                                style: AppTextStyles.subtitle.copyWith(
-                                  fontSize: 13,
-                                ),
-                              ),
-                              Text('Moderado', style: AppTextStyles.muted),
-                            ],
-                          ),
-                        ),
-                        const Icon(
-                          Icons.expand_more,
-                          size: 18,
-                          color: AppColors.muted,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                const _ConnectionStatus(),
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  bool _isActive(String path) {
+    if (path == routeHome) return currentPath == routeHome;
+    if (path == routeMarkets) return currentPath == routeMarkets;
+    return currentPath.startsWith(path);
   }
 }
 
@@ -110,20 +95,26 @@ class _NavButton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         onTap: () => context.go(item.path),
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: active
-                ? AppColors.blue.withValues(alpha: 0.34)
+                ? AppColors.blueBright.withValues(alpha: 0.10)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            border: active
-                ? Border.all(color: AppColors.blue.withValues(alpha: 0.42))
+            borderRadius: BorderRadius.circular(10),
+            border: active ? Border.all(color: AppColors.borderActive) : null,
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: AppColors.blueBright.withValues(alpha: 0.08),
+                      blurRadius: 18,
+                    ),
+                  ]
                 : null,
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
                 Icon(
@@ -133,14 +124,36 @@ class _NavButton extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    item.label,
-                    style: TextStyle(
-                      color: active ? AppColors.white : AppColors.muted,
-                      fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: active ? AppColors.white : AppColors.muted,
+                          fontWeight: active
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                      if (item.subtitle != null)
+                        Text(
+                          item.subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.muted.copyWith(fontSize: 11),
+                        ),
+                    ],
                   ),
                 ),
+                if (active)
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.blueBright,
+                    size: 18,
+                  ),
               ],
             ),
           ),
@@ -150,9 +163,60 @@ class _NavButton extends StatelessWidget {
   }
 }
 
+class _ConnectionStatus extends StatelessWidget {
+  const _ConnectionStatus();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt.withValues(alpha: 0.42),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.teal,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.teal.withValues(alpha: 0.3),
+                    blurRadius: 12,
+                  ),
+                ],
+              ),
+              child: const SizedBox(width: 10, height: 10),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Conexao Premium',
+                    style: AppTextStyles.subtitle.copyWith(fontSize: 13),
+                  ),
+                  Text('Baixa latencia', style: AppTextStyles.muted),
+                ],
+              ),
+            ),
+            const Icon(Icons.diamond_rounded, color: AppColors.teal, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _NavItem {
-  const _NavItem(this.path, this.icon, this.label);
+  const _NavItem(this.path, this.icon, this.label, [this.subtitle]);
+
   final String path;
   final IconData icon;
   final String label;
+  final String? subtitle;
 }

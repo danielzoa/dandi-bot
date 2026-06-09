@@ -22,22 +22,22 @@ class DandiCard extends StatelessWidget {
     final card = DecoratedBox(
       decoration: BoxDecoration(
         color: highlight
-            ? AppColors.surfaceAlt.withValues(alpha: 0.52)
-            : AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+            ? AppColors.surfaceAlt.withValues(alpha: 0.68)
+            : AppColors.surface.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: highlight ? AppColors.blue : AppColors.border,
+          color: highlight ? AppColors.borderActive : AppColors.border,
           width: highlight ? 1.2 : 1,
         ),
-        boxShadow: highlight
-            ? [
-                BoxShadow(
-                  color: AppColors.cardGlow,
-                  blurRadius: 24,
-                  offset: const Offset(0, 12),
-                ),
-              ]
-            : null,
+        boxShadow: [
+          BoxShadow(
+            color: highlight
+                ? AppColors.blueBright.withValues(alpha: 0.10)
+                : AppColors.cardGlow,
+            blurRadius: highlight ? 28 : 18,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
       child: Padding(padding: padding, child: child),
     );
@@ -45,7 +45,7 @@ class DandiCard extends StatelessWidget {
     if (onTap == null) return card;
 
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(10),
       onTap: onTap,
       child: card,
     );
@@ -86,7 +86,7 @@ class InfoPill extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withValues(alpha: 0.45)),
       ),
       child: Padding(

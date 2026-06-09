@@ -8,7 +8,7 @@ abstract final class AppTextStyles {
 
   static TextStyle get display => const TextStyle(
     color: AppColors.white,
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: FontWeight.w800,
     fontFamily: 'Inter',
     fontFamilyFallback: _sansFallback,
@@ -16,7 +16,7 @@ abstract final class AppTextStyles {
 
   static TextStyle get title => const TextStyle(
     color: AppColors.white,
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: FontWeight.w700,
     fontFamily: 'Inter',
     fontFamilyFallback: _sansFallback,
@@ -50,7 +50,7 @@ abstract final class AppTextStyles {
     color: AppColors.white,
     fontSize: 15,
     fontWeight: FontWeight.w700,
-    fontFamily: 'Space Mono',
+    fontFamily: 'JetBrains Mono',
     fontFamilyFallback: _monoFallback,
   );
 }
