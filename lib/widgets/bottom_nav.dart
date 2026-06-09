@@ -12,7 +12,7 @@ class BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final destinations = [
-      _Destination(routeHome, Icons.dashboard_rounded, 'Dash'),
+      _Destination(routeHome, Icons.home_rounded, 'Dash'),
       _Destination(routeMarkets, Icons.query_stats_rounded, 'Mercados'),
       _Destination(
         routePortfolio,

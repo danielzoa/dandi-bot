@@ -14,7 +14,7 @@ class SideNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      _NavItem(routeHome, Icons.dashboard_rounded, 'Dashboard', 'Visao geral'),
+      _NavItem(routeHome, Icons.home_rounded, 'Dashboard', 'Visao geral'),
       _NavItem(routeMarkets, Icons.query_stats_rounded, 'Mercado'),
       _NavItem(
         routePortfolio,
@@ -22,11 +22,11 @@ class SideNav extends StatelessWidget {
         'Carteira',
         'Posicoes e performance',
       ),
-      _NavItem(routeAnalysis, Icons.candlestick_chart_rounded, 'Grafico'),
+      _NavItem(routeAnalysis, Icons.show_chart_rounded, 'Grafico'),
       _NavItem(routeNews, Icons.newspaper_rounded, 'Noticias'),
-      _NavItem(routeChat, Icons.psychology_alt_outlined, 'IA'),
-      _NavItem(routeMarketCatalog, Icons.filter_alt_outlined, 'Screeners'),
-      _NavItem(routeHistory, Icons.notifications_none_rounded, 'Alertas'),
+      _NavItem(routeChat, Icons.smart_toy_outlined, 'IA'),
+      _NavItem(routeMarketCatalog, Icons.filter_list_rounded, 'Screeners'),
+      _NavItem(routeHistory, Icons.notifications_rounded, 'Alertas'),
       _NavItem(routeSettings, Icons.settings_rounded, 'Configuracoes'),
     ];
 
